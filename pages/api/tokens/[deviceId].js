@@ -5,14 +5,18 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     // Device polls for pending tokens
-    if (!deviceId) {
-      return res.status(400).json({ error: 'Missing deviceId' });
+    if (!deviceId || typeof deviceId !== 'string') {
+      return res.status(400).json({
+        ok: false,
+        error: 'deviceId is required',
+        code: 'MISSING_DEVICE_ID'
+      });
     }
 
     try {
       // Get oldest pending token for this device
       const result = await sql`
-        SELECT id, token FROM tokens_queue 
+        SELECT id, token, created_at FROM tokens_queue 
         WHERE device_id = ${deviceId} AND dispatched_at IS NULL 
         ORDER BY created_at ASC LIMIT 1
       `;
@@ -23,17 +27,38 @@ export default async function handler(req, res) {
 
       const tokenRecord = result.rows[0];
 
-      // Mark as dispatched
-      await sql`UPDATE tokens_queue SET dispatched_at = NOW() WHERE id = ${tokenRecord.id}`;
+      // Mark as dispatched atomically
+      await sql`
+        UPDATE tokens_queue 
+        SET dispatched_at = NOW() 
+        WHERE id = ${tokenRecord.id} AND dispatched_at IS NULL
+      `;
+
+      // Update device last_seen
+      await sql`
+        UPDATE devices 
+        SET last_seen = NOW() 
+        WHERE id = ${deviceId}
+      `;
 
       return res.status(200).json({
-        token: tokenRecord.token
+        token: tokenRecord.token,
+        id: tokenRecord.id,
+        queued_at: tokenRecord.created_at
       });
     } catch (error) {
       console.error('Error fetching token:', error);
-      return res.status(500).json({ error: 'Failed to fetch token' });
+      return res.status(500).json({
+        ok: false,
+        error: 'Failed to fetch token',
+        code: 'DATABASE_ERROR'
+      });
     }
   }
 
-  return res.status(405).json({ error: 'Method not allowed' });
+  return res.status(405).json({
+    ok: false,
+    error: 'Method not allowed',
+    code: 'METHOD_NOT_ALLOWED'
+  });
 }

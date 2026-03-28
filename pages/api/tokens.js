@@ -1,31 +1,95 @@
 import { sql } from '@vercel/postgres';
 
+const TOKEN_LENGTH = 20;
+const DEVICE_ID_MIN_LEN = 5;
+
 export default async function handler(req, res) {
   if (req.method === 'POST') {
-    // App submits token for device
-    const { deviceId, token } = req.body;
+    const { deviceId, token, userId } = req.body;
 
-    if (!deviceId || !token) {
-      return res.status(400).json({ error: 'Missing deviceId or token' });
+    // Validate inputs
+    if (!deviceId || typeof deviceId !== 'string') {
+      return res.status(400).json({
+        ok: false,
+        error: 'deviceId is required and must be a string',
+        code: 'MISSING_DEVICE_ID'
+      });
+    }
+
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({
+        ok: false,
+        error: 'token is required and must be a string',
+        code: 'MISSING_TOKEN'
+      });
+    }
+
+    if (token.length !== TOKEN_LENGTH) {
+      return res.status(400).json({
+        ok: false,
+        error: `Token must be exactly ${TOKEN_LENGTH} digits`,
+        code: 'INVALID_TOKEN'
+      });
+    }
+
+    if (!/^\d+$/.test(token)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Token must contain only digits',
+        code: 'INVALID_TOKEN_FORMAT'
+      });
+    }
+
+    if (deviceId.length < DEVICE_ID_MIN_LEN) {
+      return res.status(400).json({
+        ok: false,
+        error: `deviceId must be at least ${DEVICE_ID_MIN_LEN} characters`,
+        code: 'INVALID_DEVICE_ID'
+      });
     }
 
     try {
+      // Check if device exists (optional for tracking)
+      const deviceCheck = await sql`
+        SELECT id FROM devices WHERE id = ${deviceId}
+      `;
+
+      // If device doesn't exist, optionally create it
+      if (deviceCheck.rows.length === 0) {
+        await sql`
+          INSERT INTO devices (id, user_id, created_at, last_seen)
+          VALUES (${deviceId}, ${userId || null}, NOW(), NOW())
+          ON CONFLICT (id) DO NOTHING
+        `;
+      }
+
+      // Insert into tokens_queue
       const result = await sql`
         INSERT INTO tokens_queue (id, device_id, token, created_at) 
         VALUES (gen_random_uuid(), ${deviceId}, ${token}, NOW()) 
-        RETURNING id
+        RETURNING id, created_at
       `;
 
       return res.status(200).json({
         ok: true,
         id: result.rows[0].id,
-        message: 'Token queued for device'
+        queued_at: result.rows[0].created_at,
+        method: 'cloud',
+        status: 'waiting_for_device_poll'
       });
     } catch (error) {
       console.error('Error queuing token:', error);
-      return res.status(500).json({ error: 'Failed to queue token' });
+      return res.status(500).json({
+        ok: false,
+        error: 'Failed to queue token',
+        code: 'DATABASE_ERROR'
+      });
     }
   }
 
-  return res.status(405).json({ error: 'Method not allowed' });
+  return res.status(405).json({
+    ok: false,
+    error: 'Method not allowed',
+    code: 'METHOD_NOT_ALLOWED'
+  });
 }
