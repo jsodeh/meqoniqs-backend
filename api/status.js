@@ -1,5 +1,4 @@
-import { db } from '@vercel/postgres';
-import { v4 as uuidv4 } from 'uuid';
+import { sql } from '@vercel/postgres';
 
 export default async function handler(req, res) {
   if (req.method === 'POST') {
@@ -11,23 +10,17 @@ export default async function handler(req, res) {
     }
 
     try {
-      const client = await db.connect();
-
       // Insert status log
-      await client.query(
-        `INSERT INTO status_logs (id, device_id, battery_mv, ac_present, meter_connected, logged_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())`,
-        [uuidv4(), deviceId, battery || 0, acPresent || false, meterConnected || false]
-      );
+      await sql`
+        INSERT INTO status_logs (id, device_id, battery_mv, ac_present, meter_connected, logged_at)
+        VALUES (gen_random_uuid(), ${deviceId}, ${battery || 0}, ${acPresent || false}, ${meterConnected || false}, NOW())
+      `;
 
       // Update device last_seen
-      await client.query(
-        `UPDATE devices SET last_seen = NOW(), ip_address = $1 
-         WHERE id = $2`,
-        [ip || '', deviceId]
-      );
-
-      await client.end();
+      await sql`
+        UPDATE devices SET last_seen = NOW(), ip_address = ${ip || ''} 
+        WHERE id = ${deviceId}
+      `;
 
       return res.status(200).json({ ok: true });
     } catch (error) {

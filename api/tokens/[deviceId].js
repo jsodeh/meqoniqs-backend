@@ -1,4 +1,4 @@
-import { db } from '@vercel/postgres';
+import { sql } from '@vercel/postgres';
 
 export default async function handler(req, res) {
   const { deviceId } = req.query;
@@ -10,30 +10,21 @@ export default async function handler(req, res) {
     }
 
     try {
-      const client = await db.connect();
-
       // Get oldest pending token for this device
-      const result = await client.query(
-        `SELECT id, token FROM tokens_queue 
-         WHERE device_id = $1 AND dispatched_at IS NULL 
-         ORDER BY created_at ASC LIMIT 1`,
-        [deviceId]
-      );
+      const result = await sql`
+        SELECT id, token FROM tokens_queue 
+        WHERE device_id = ${deviceId} AND dispatched_at IS NULL 
+        ORDER BY created_at ASC LIMIT 1
+      `;
 
       if (result.rows.length === 0) {
-        await client.end();
         return res.status(200).json({ empty: true });
       }
 
       const tokenRecord = result.rows[0];
 
       // Mark as dispatched
-      await client.query(
-        `UPDATE tokens_queue SET dispatched_at = NOW() WHERE id = $1`,
-        [tokenRecord.id]
-      );
-
-      await client.end();
+      await sql`UPDATE tokens_queue SET dispatched_at = NOW() WHERE id = ${tokenRecord.id}`;
 
       return res.status(200).json({
         token: tokenRecord.token

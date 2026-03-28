@@ -1,5 +1,4 @@
-import { db } from '@vercel/postgres';
-import { v4 as uuidv4 } from 'uuid';
+import { sql } from '@vercel/postgres';
 
 export default async function handler(req, res) {
   if (req.method === 'POST') {
@@ -11,16 +10,11 @@ export default async function handler(req, res) {
     }
 
     try {
-      const client = await db.connect();
-      
-      // Insert into tokens_queue
-      const result = await client.query(
-        `INSERT INTO tokens_queue (id, device_id, token, created_at) 
-         VALUES ($1, $2, $3, NOW()) RETURNING id`,
-        [uuidv4(), deviceId, token]
-      );
-
-      await client.end();
+      const result = await sql`
+        INSERT INTO tokens_queue (id, device_id, token, created_at) 
+        VALUES (gen_random_uuid(), ${deviceId}, ${token}, NOW()) 
+        RETURNING id
+      `;
 
       return res.status(200).json({
         ok: true,
