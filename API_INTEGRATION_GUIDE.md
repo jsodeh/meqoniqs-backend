@@ -1,4 +1,4 @@
-# MetroPush Hybrid Token Loading - API Integration Guide
+# Meqoniqs Hybrid Token Loading - API Integration Guide
 
 ## Overview
 

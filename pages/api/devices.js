@@ -15,12 +15,25 @@ export default async function handler(req, res) {
 
     try {
       const result = await sql`
-        INSERT INTO devices (id, user_id, meter_id, created_at, last_seen)
-        VALUES (${deviceId}, ${userId || null}, ${meterId || null}, NOW(), NOW())
+        INSERT INTO meqoniqs_devices (
+          id, user_id, meter_id, meter_number, device_name, created_at, last_seen
+        )
+        VALUES (
+          ${deviceId},
+          ${userId || null},
+          ${meterId || null},
+          ${meterNumber || null},
+          ${deviceName || 'Meqoniqs Device'},
+          NOW(),
+          NOW()
+        )
         ON CONFLICT (id) DO UPDATE
-        SET user_id = COALESCE(EXCLUDED.user_id, devices.user_id),
-            meter_id = COALESCE(EXCLUDED.meter_id, devices.meter_id),
-            last_seen = NOW()
+        SET
+          user_id = COALESCE(EXCLUDED.user_id, meqoniqs_devices.user_id),
+          meter_id = COALESCE(EXCLUDED.meter_id, meqoniqs_devices.meter_id),
+          meter_number = COALESCE(EXCLUDED.meter_number, meqoniqs_devices.meter_number),
+          device_name = COALESCE(EXCLUDED.device_name, meqoniqs_devices.device_name),
+          last_seen = NOW()
         RETURNING id, created_at
       `;
 

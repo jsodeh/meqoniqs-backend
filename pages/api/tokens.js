@@ -49,24 +49,24 @@ export default async function handler(req, res) {
     }
 
     try {
-      // Check if device exists (optional for tracking)
+      // Check if device exists in unified database
       const deviceCheck = await sql`
-        SELECT id FROM devices WHERE id = ${deviceId}
+        SELECT id FROM meqoniqs_devices WHERE id = ${deviceId}
       `;
 
       // If device doesn't exist, optionally create it
       if (deviceCheck.rows.length === 0) {
         await sql`
-          INSERT INTO devices (id, user_id, created_at, last_seen)
-          VALUES (${deviceId}, ${userId || null}, NOW(), NOW())
+          INSERT INTO meqoniqs_devices (id, user_id, device_name, created_at, last_seen)
+          VALUES (${deviceId}, ${userId || null}, 'Meqoniqs Device', NOW(), NOW())
           ON CONFLICT (id) DO NOTHING
         `;
       }
 
-      // Insert into tokens_queue
+      // Insert into meqoniqs_tokens with 'queued' status
       const result = await sql`
-        INSERT INTO tokens_queue (id, device_id, token, created_at) 
-        VALUES (gen_random_uuid(), ${deviceId}, ${token}, NOW()) 
+        INSERT INTO meqoniqs_tokens (id, device_id, user_id, token, status, created_at) 
+        VALUES (gen_random_uuid(), ${deviceId}, ${userId || null}, ${token}, 'queued', NOW()) 
         RETURNING id, created_at
       `;
 

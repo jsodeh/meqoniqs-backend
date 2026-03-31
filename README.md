@@ -1,6 +1,6 @@
-# MetroPush Backend API
+# Meqoniqs Backend API
 
-Cloud backend for MetroPush IoT remote token provisioning and device management.
+Cloud backend for Meqoniqs IoT remote token provisioning and device management.
 
 ## Features
 

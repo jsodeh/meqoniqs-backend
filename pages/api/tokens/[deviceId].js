@@ -14,10 +14,10 @@ export default async function handler(req, res) {
     }
 
     try {
-      // Get oldest pending token for this device
+      // Get oldest pending token for this device (status = 'queued')
       const result = await sql`
-        SELECT id, token, created_at FROM tokens_queue 
-        WHERE device_id = ${deviceId} AND dispatched_at IS NULL 
+        SELECT id, token, created_at FROM meqoniqs_tokens 
+        WHERE device_id = ${deviceId} AND status = 'queued'
         ORDER BY created_at ASC LIMIT 1
       `;
 
@@ -29,14 +29,14 @@ export default async function handler(req, res) {
 
       // Mark as dispatched atomically
       await sql`
-        UPDATE tokens_queue 
-        SET dispatched_at = NOW() 
-        WHERE id = ${tokenRecord.id} AND dispatched_at IS NULL
+        UPDATE meqoniqs_tokens 
+        SET status = 'dispatched', dispatched_at = NOW() 
+        WHERE id = ${tokenRecord.id} AND status = 'queued'
       `;
 
       // Update device last_seen
       await sql`
-        UPDATE devices 
+        UPDATE meqoniqs_devices 
         SET last_seen = NOW() 
         WHERE id = ${deviceId}
       `;

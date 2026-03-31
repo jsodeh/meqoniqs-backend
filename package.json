@@ -1,7 +1,7 @@
 {
-  "name": "metropush-backend",
+  "name": "meqoniqs-backend",
   "version": "1.0.0",
-  "description": "MetroPush IoT backend API for token provisioning and device management",
+  "description": "Meqoniqs IoT backend API for token provisioning and device management",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

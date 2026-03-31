@@ -2,7 +2,19 @@ import { sql } from '@vercel/postgres';
 
 export default async function handler(req, res) {
   if (req.method === 'POST') {
-    const { deviceId, ip, battery, acPresent, meterConnected, firmwareVersion } = req.body;
+    const {
+      deviceId,
+      ip,
+      battery,
+      acPresent,
+      meterConnected,
+      firmwareVersion,
+      meterNumber,
+      meterId,
+      balance,
+      consumption,
+      rssi
+    } = req.body;
 
     // Validate deviceId
     if (!deviceId || typeof deviceId !== 'string') {
@@ -14,20 +26,20 @@ export default async function handler(req, res) {
     }
 
     try {
-      // Ensure device exists
-      const existing = await sql`SELECT id FROM devices WHERE id = ${deviceId}`;
+      // Ensure device exists in unified database
+      const existing = await sql`SELECT id FROM meqoniqs_devices WHERE id = ${deviceId}`;
       if (existing.rows.length === 0) {
         await sql`
-          INSERT INTO devices (id, created_at, last_seen)
-          VALUES (${deviceId}, NOW(), NOW())
+          INSERT INTO meqoniqs_devices (id, device_name, created_at, last_seen)
+          VALUES (${deviceId}, 'Meqoniqs Device', NOW(), NOW())
         `;
       }
 
-      // Insert status log
+      // Insert status log for historical tracking
       await sql`
-        INSERT INTO status_logs (
+        INSERT INTO meqoniqs_status_logs (
           id, device_id, battery_mv, ac_present, 
-          meter_connected, firmware_version, logged_at
+          meter_connected, logged_at
         )
         VALUES (
           gen_random_uuid(),
@@ -35,23 +47,40 @@ export default async function handler(req, res) {
           ${battery || 0},
           ${acPresent || false},
           ${meterConnected || false},
-          ${firmwareVersion || null},
           NOW()
         )
       `;
 
-      // Update device with latest status
+      // Update device with latest status and meter info
       await sql`
-        UPDATE devices 
+        UPDATE meqoniqs_devices 
         SET 
           last_seen = NOW(),
+          last_status_update = NOW(),
           ip_address = ${ip || null},
           battery_mv = ${battery || null},
           ac_present = ${acPresent || false},
           meter_connected = ${meterConnected || false},
-          firmware_version = ${firmwareVersion || null}
+          firmware_version = ${firmwareVersion || null},
+          meter_number = ${meterNumber || meterId || null},
+          rssi = ${rssi || null}
         WHERE id = ${deviceId}
       `;
+
+      // Update or insert meter state if provided
+      if (balance !== undefined || consumption !== undefined) {
+        await sql`
+          INSERT INTO meqoniqs_meter_state (
+            device_id, balance, consumption, updated_at
+          )
+          VALUES (${deviceId}, ${balance || 0}, ${consumption || 0}, NOW())
+          ON CONFLICT (device_id) DO UPDATE
+          SET
+            balance = COALESCE(EXCLUDED.balance, meqoniqs_meter_state.balance),
+            consumption = COALESCE(EXCLUDED.consumption, meqoniqs_meter_state.consumption),
+            updated_at = NOW()
+        `;
+      }
 
       return res.status(200).json({ ok: true });
     } catch (error) {
