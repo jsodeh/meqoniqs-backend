@@ -3,7 +3,7 @@ import { sql } from '@vercel/postgres';
 export default async function handler(req, res) {
   if (req.method === 'POST') {
     // Register device
-    const { deviceId, userId, meterId } = req.body;
+    const { deviceId, userId, meterId, meterNumber, deviceName } = req.body;
 
     if (!deviceId) {
       return res.status(400).json({
